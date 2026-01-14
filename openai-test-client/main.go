@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"strings"
 	"time"
@@ -52,6 +53,7 @@ func main() {
 	certFile := flag.String("cert", "../certs/client.crt", "Client certificate file")
 	keyFile := flag.String("key", "../certs/client.key", "Client key file")
 	caFile := flag.String("ca", "../certs/ca.crt", "CA certificate file for server verification")
+	proxyURL := flag.String("proxy", "", "HTTP proxy URL (e.g., http://localhost:8080)")
 	insecure := flag.Bool("insecure", false, "Run without mTLS (plain HTTP)")
 	flag.Parse()
 
@@ -59,8 +61,23 @@ func main() {
 
 	if *insecure {
 		// Configure client without TLS
+		transport := &http.Transport{}
+
+		// Add proxy if specified
+		if *proxyURL != "" {
+			proxy, err := url.Parse(*proxyURL)
+			if err != nil {
+				fmt.Printf("Failed to parse proxy URL: %v\n", err)
+				os.Exit(1)
+			}
+			transport.Proxy = http.ProxyURL(proxy)
+			fmt.Printf("Using HTTP proxy: %s\n", *proxyURL)
+		}
+
+		httpClient := &http.Client{Transport: transport}
 		config := openai.DefaultConfig("mock-api-key")
 		config.BaseURL = "http://localhost:8000/v1"
+		config.HTTPClient = httpClient
 		client = openai.NewClientWithConfig(config)
 	} else {
 		// Load client certificate
@@ -90,11 +107,25 @@ func main() {
 			MinVersion:   tls.VersionTLS12,
 		}
 
-		// Create HTTP client with mTLS
+		// Create HTTP transport with mTLS
+		transport := &http.Transport{
+			TLSClientConfig: tlsConfig,
+		}
+
+		// Add proxy if specified
+		if *proxyURL != "" {
+			proxy, err := url.Parse(*proxyURL)
+			if err != nil {
+				fmt.Printf("Failed to parse proxy URL: %v\n", err)
+				os.Exit(1)
+			}
+			transport.Proxy = http.ProxyURL(proxy)
+			fmt.Printf("Using HTTP proxy: %s\n", *proxyURL)
+		}
+
+		// Create HTTP client with mTLS (and optional proxy)
 		httpClient := &http.Client{
-			Transport: &http.Transport{
-				TLSClientConfig: tlsConfig,
-			},
+			Transport: transport,
 		}
 
 		// Configure OpenAI client with mTLS

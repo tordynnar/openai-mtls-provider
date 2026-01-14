@@ -79,7 +79,18 @@ This creates:
 | `-cert` | `../certs/client.crt` | Client certificate file |
 | `-key` | `../certs/client.key` | Client key file |
 | `-ca` | `../certs/ca.crt` | CA certificate for server verification |
+| `-proxy` | (none) | HTTP proxy URL (e.g., `http://localhost:8080`) |
 | `-insecure` | `false` | Run without mTLS (plain HTTP) |
+
+### Running With Proxy
+
+```bash
+# Start the proxy server
+cd http-proxy && ./http-proxy -verbose &
+
+# Run client through proxy with mTLS
+cd openai-test-client && ./openai-test-client -proxy http://localhost:8080
+```
 
 ### Running Without mTLS
 
