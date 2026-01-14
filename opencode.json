@@ -9,7 +9,8 @@
         "clientCert": "./certs/client.crt",
         "clientKey": "./certs/client.key",
         "caCert": "./certs/ca.crt",
-        "apiKey": "mock-api-key"
+        "apiKey": "mock-api-key",
+        "proxy": "http://localhost:8080"
       },
       "models": {
         "gpt-4o": {

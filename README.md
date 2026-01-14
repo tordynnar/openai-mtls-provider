@@ -18,10 +18,13 @@ A complete mock OpenAI API server written in Go, along with a test client and Op
 │   ├── main.go
 │   ├── go.mod
 │   └── go.sum
-└── openai-mtls-provider/     # Custom mTLS provider for OpenCode (TypeScript)
-    ├── src/index.ts
-    ├── package.json
-    └── tsconfig.json
+├── openai-mtls-provider/     # Custom mTLS provider for OpenCode (TypeScript)
+│   ├── src/index.ts
+│   ├── package.json
+│   └── tsconfig.json
+└── http-proxy/               # HTTP proxy server with SSE support (Go)
+    ├── main.go
+    └── go.mod
 ```
 
 ## Quick Start
@@ -304,12 +307,13 @@ The `opencode.json` configuration specifies the custom provider with mTLS certif
 
 ## mTLS Provider
 
-The `openai-mtls-provider` is a custom AI SDK provider that adds mTLS support.
+The `openai-mtls-provider` is a custom AI SDK provider that adds mTLS and HTTP proxy support.
 
 ### Features
 
 - Compatible with `@ai-sdk/openai-compatible`
 - Uses Bun's native TLS options for client certificate authentication
+- HTTP proxy support via CONNECT tunneling
 - Configurable certificate paths in `opencode.json`
 - Falls back to standard fetch when no certificates are provided
 
@@ -323,6 +327,46 @@ The `openai-mtls-provider` is a custom AI SDK provider that adds mTLS support.
 | `caCert` | string | Path to CA certificate (PEM format) |
 | `apiKey` | string | Optional API key for authentication |
 | `headers` | object | Optional custom headers |
+| `proxy` | string | Optional HTTP proxy URL (e.g., `http://localhost:8080`) |
+
+## HTTP Proxy Server
+
+A generic HTTP proxy server with support for HTTPS tunneling and SSE streaming.
+
+### Features
+
+- HTTP and HTTPS proxy support
+- CONNECT method for HTTPS tunneling
+- SSE/streaming support (unbuffered responses)
+- Request logging
+- Verbose mode for debugging
+
+### Usage
+
+```bash
+cd http-proxy
+go build -o http-proxy .
+./http-proxy [-port 8080] [-verbose]
+```
+
+### Flags
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `-port` | `8080` | Port to listen on |
+| `-verbose` | `false` | Enable verbose logging |
+
+### Using with OpenCode
+
+Add the proxy to your `opencode.json`:
+
+```json
+{
+  "options": {
+    "proxy": "http://localhost:8080"
+  }
+}
+```
 
 ## Building from Source
 
@@ -337,6 +381,14 @@ go build -o openai-mock-server .
 # Build test client
 cd ../openai-test-client
 go build -o openai-test-client .
+
+# Build HTTP proxy
+cd ../http-proxy
+go build -o http-proxy .
+
+# Build mTLS provider
+cd ../openai-mtls-provider
+npm install && npm run build
 ```
 
 ## Dependencies
@@ -352,6 +404,10 @@ go build -o openai-test-client .
 ### mTLS Provider
 - Node.js 18+ / Bun
 - `@ai-sdk/openai-compatible` ^1.0.30
+
+### HTTP Proxy
+- Go 1.21+
+- No external dependencies
 
 ## License
 

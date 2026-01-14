@@ -1,6 +1,7 @@
 # Compiled binaries
 openai-mock-server/openai-mock-server
 openai-test-client/openai-test-client
+http-proxy/http-proxy
 
 # Go build artifacts
 *.exe

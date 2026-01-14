@@ -42,6 +42,11 @@ export interface MTLSProviderSettings {
    * Path to the CA certificate file (PEM format)
    */
   caCert?: string;
+
+  /**
+   * HTTP proxy URL (e.g., "http://localhost:8080")
+   */
+  proxy?: string;
 }
 
 /**
@@ -54,82 +59,104 @@ function resolvePath(p: string): string {
   return path.resolve(process.cwd(), p);
 }
 
+interface FetchOptions {
+  clientCert?: string;
+  clientKey?: string;
+  caCert?: string;
+  proxy?: string;
+}
+
 /**
- * Creates a custom fetch function with mTLS support
- * Uses Bun's native TLS options for client certificate authentication
+ * Creates a custom fetch function with mTLS and/or proxy support
+ * Uses Bun's native TLS and proxy options
  */
-function createMTLSFetch(options: {
-  clientCert: string;
-  clientKey: string;
-  caCert: string;
-}): typeof fetch {
-  const certPath = resolvePath(options.clientCert);
-  const keyPath = resolvePath(options.clientKey);
-  const caPath = resolvePath(options.caCert);
+function createCustomFetch(options: FetchOptions): typeof fetch {
+  let cert: Buffer | undefined;
+  let key: Buffer | undefined;
+  let ca: Buffer | undefined;
 
-  // Read certificates
-  let cert: Buffer;
-  let key: Buffer;
-  let ca: Buffer;
+  // Load certificates if provided
+  if (options.clientCert && options.clientKey && options.caCert) {
+    const certPath = resolvePath(options.clientCert);
+    const keyPath = resolvePath(options.clientKey);
+    const caPath = resolvePath(options.caCert);
 
-  try {
-    cert = fs.readFileSync(certPath);
-  } catch (e) {
-    throw new Error(`Failed to read client certificate from ${certPath}: ${e}`);
+    try {
+      cert = fs.readFileSync(certPath);
+    } catch (e) {
+      throw new Error(`Failed to read client certificate from ${certPath}: ${e}`);
+    }
+
+    try {
+      key = fs.readFileSync(keyPath);
+    } catch (e) {
+      throw new Error(`Failed to read client key from ${keyPath}: ${e}`);
+    }
+
+    try {
+      ca = fs.readFileSync(caPath);
+    } catch (e) {
+      throw new Error(`Failed to read CA certificate from ${caPath}: ${e}`);
+    }
   }
 
-  try {
-    key = fs.readFileSync(keyPath);
-  } catch (e) {
-    throw new Error(`Failed to read client key from ${keyPath}: ${e}`);
-  }
-
-  try {
-    ca = fs.readFileSync(caPath);
-  } catch (e) {
-    throw new Error(`Failed to read CA certificate from ${caPath}: ${e}`);
-  }
-
-  // Create custom fetch function that uses Bun's TLS options
-  const mtlsFetch = async (
+  // Create custom fetch function
+  const customFetch = async (
     input: string | URL | Request,
     init?: RequestInit
   ): Promise<Response> => {
-    return fetch(input, {
+    const fetchOptions: RequestInit & { tls?: object; proxy?: string } = {
       ...init,
+    };
+
+    // Add TLS options if certificates are provided
+    if (cert && key && ca) {
       // @ts-ignore - Bun supports tls option for mTLS
-      tls: {
+      fetchOptions.tls = {
         cert: cert.toString(),
         key: key.toString(),
         ca: ca.toString(),
         rejectUnauthorized: true,
-      },
-    });
+      };
+    }
+
+    // Add proxy if provided
+    if (options.proxy) {
+      // @ts-ignore - Bun supports proxy option
+      fetchOptions.proxy = options.proxy;
+    }
+
+    return fetch(input, fetchOptions);
   };
 
-  return mtlsFetch;
+  return customFetch;
 }
 
 /**
- * Creates an OpenAI-compatible provider with optional mTLS authentication.
+ * Creates an OpenAI-compatible provider with optional mTLS authentication and proxy support.
  *
  * This function matches the signature expected by OpenCode's provider system.
  * When clientCert, clientKey, and caCert are provided, the provider will use
  * mTLS for all API requests.
+ * When proxy is provided, all requests will be routed through the HTTP proxy.
  */
 export function createOpenAICompatible(options: MTLSProviderSettings) {
-  // Build the fetch function if mTLS certificates are provided
+  // Build the fetch function if mTLS certificates or proxy are provided
   let customFetch: typeof fetch | undefined;
 
-  if (options.clientCert && options.clientKey && options.caCert) {
-    customFetch = createMTLSFetch({
+  const hasMTLS = options.clientCert && options.clientKey && options.caCert;
+  const hasProxy = !!options.proxy;
+
+  if (hasMTLS || hasProxy) {
+    customFetch = createCustomFetch({
       clientCert: options.clientCert,
       clientKey: options.clientKey,
       caCert: options.caCert,
+      proxy: options.proxy,
     });
   }
 
-  // Create the base provider with optional mTLS fetch
+  // Create the base provider with optional custom fetch
   return createBaseProvider({
     baseURL: options.baseURL,
     name: options.name,
