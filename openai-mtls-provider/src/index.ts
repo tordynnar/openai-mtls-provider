@@ -39,7 +39,8 @@ export interface MTLSProviderSettings {
   clientKey?: string;
 
   /**
-   * Path to the CA certificate file (PEM format)
+   * Path to the CA certificate file (PEM format).
+   * If not provided, server certificate verification is skipped.
    */
   caCert?: string;
 
@@ -108,11 +109,10 @@ function createCustomFetch(options: FetchOptions): typeof fetch {
   let key: Buffer | undefined;
   let ca: Buffer | undefined;
 
-  // Load certificates if provided
-  if (options.clientCert && options.clientKey && options.caCert) {
+  // Load client certificates if provided
+  if (options.clientCert && options.clientKey) {
     const certPath = resolvePath(options.clientCert);
     const keyPath = resolvePath(options.clientKey);
-    const caPath = resolvePath(options.caCert);
 
     try {
       cert = fs.readFileSync(certPath);
@@ -126,10 +126,14 @@ function createCustomFetch(options: FetchOptions): typeof fetch {
       throw new Error(`Failed to read client key from ${keyPath}: ${e}`);
     }
 
-    try {
-      ca = fs.readFileSync(caPath);
-    } catch (e) {
-      throw new Error(`Failed to read CA certificate from ${caPath}: ${e}`);
+    // Load CA certificate if provided (optional - skips server verification if not provided)
+    if (options.caCert) {
+      const caPath = resolvePath(options.caCert);
+      try {
+        ca = fs.readFileSync(caPath);
+      } catch (e) {
+        throw new Error(`Failed to read CA certificate from ${caPath}: ${e}`);
+      }
     }
   }
 
@@ -156,14 +160,14 @@ function createCustomFetch(options: FetchOptions): typeof fetch {
       }
     }
 
-    // Add TLS options if certificates are provided
-    if (cert && key && ca) {
+    // Add TLS options if client certificates are provided
+    if (cert && key) {
       // @ts-ignore - Bun supports tls option for mTLS
       fetchOptions.tls = {
         cert: cert.toString(),
         key: key.toString(),
-        ca: ca.toString(),
-        rejectUnauthorized: true,
+        // If CA cert is provided, verify server cert; otherwise skip verification
+        ...(ca ? { ca: ca.toString(), rejectUnauthorized: true } : { rejectUnauthorized: false }),
       };
     }
 
@@ -183,19 +187,20 @@ function createCustomFetch(options: FetchOptions): typeof fetch {
  * Creates an OpenAI-compatible provider with optional mTLS authentication and proxy support.
  *
  * This function matches the signature expected by OpenCode's provider system.
- * When clientCert, clientKey, and caCert are provided, the provider will use
- * mTLS for all API requests.
+ * When clientCert and clientKey are provided, the provider will use mTLS for all API requests.
+ * If caCert is also provided, server certificate verification is enabled.
+ * If caCert is not provided, server certificate verification is skipped.
  * When proxy is provided, all requests will be routed through the HTTP proxy.
  */
 export function createOpenAICompatible(options: MTLSProviderSettings) {
   // Build the fetch function if mTLS certificates, proxy, or removeKeys are provided
   let customFetch: typeof fetch | undefined;
 
-  const hasMTLS = options.clientCert && options.clientKey && options.caCert;
+  const hasClientCert = options.clientCert && options.clientKey;
   const hasProxy = !!options.proxy;
   const hasRemoveKeys = options.removeKeys && options.removeKeys.length > 0;
 
-  if (hasMTLS || hasProxy || hasRemoveKeys) {
+  if (hasClientCert || hasProxy || hasRemoveKeys) {
     customFetch = createCustomFetch({
       clientCert: options.clientCert,
       clientKey: options.clientKey,

@@ -8,7 +8,6 @@
         "baseURL": "https://localhost:8000/v1",
         "clientCert": "./certs/client.crt",
         "clientKey": "./certs/client.key",
-        "caCert": "./certs/ca.crt",
         "proxy": "http://localhost:8080",
         "headers": {
           "X-Custom-Header": "test-value-123",

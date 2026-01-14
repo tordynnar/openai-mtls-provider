@@ -344,7 +344,7 @@ The `openai-mtls-provider` is a custom AI SDK provider that adds mTLS and HTTP p
 | `baseURL` | string | Base URL for the OpenAI-compatible API |
 | `clientCert` | string | Path to client certificate (PEM format) |
 | `clientKey` | string | Path to client private key (PEM format) |
-| `caCert` | string | Path to CA certificate (PEM format) |
+| `caCert` | string | Path to CA certificate (PEM format). If omitted, server cert verification is skipped |
 | `apiKey` | string | Optional API key for authentication |
 | `headers` | object | Optional custom headers (e.g., `{"X-Custom-Header": "value"}`) |
 | `proxy` | string | Optional HTTP proxy URL (e.g., `http://localhost:8080`) |
