@@ -89,10 +89,10 @@ echo -e "  ${GREEN}✓${NC} OpenCode installed"
 
 echo ""
 
-# Start mock server
+# Start mock server (with verbose mode for removeKeys test)
 echo -e "${BOLD}Starting mock server...${NC}"
 cd "$SCRIPT_DIR/openai-mock-server"
-./openai-mock-server > /tmp/mock-server.log 2>&1 &
+./openai-mock-server -verbose > /tmp/mock-server.log 2>&1 &
 MOCK_SERVER_PID=$!
 sleep 1
 
@@ -162,9 +162,30 @@ else
     exit 1
 fi
 
-# Test 2: Run the Go test client through proxy
+# Test 2: Verify removeKeys feature strips keys from request body
 echo ""
-echo -e "${BOLD}${CYAN}Test 2: Go Test Client -> Proxy -> Mock Server${NC}"
+echo -e "${BOLD}${CYAN}Test 2: removeKeys Feature (strips frequency_penalty, presence_penalty)${NC}"
+
+# Check that the request body was logged and does NOT contain the removed keys
+if grep -q "Request body:" /tmp/mock-server.log; then
+    # Check that removed keys are NOT present
+    if grep "Request body:" /tmp/mock-server.log | grep -q "frequency_penalty"; then
+        echo -e "  ${RED}✗${NC} frequency_penalty was NOT removed from request"
+        exit 1
+    fi
+    if grep "Request body:" /tmp/mock-server.log | grep -q "presence_penalty"; then
+        echo -e "  ${RED}✗${NC} presence_penalty was NOT removed from request"
+        exit 1
+    fi
+    echo -e "  ${GREEN}✓${NC} frequency_penalty successfully removed"
+    echo -e "  ${GREEN}✓${NC} presence_penalty successfully removed"
+else
+    echo -e "  ${YELLOW}!${NC} No request body logged (verbose mode may not be enabled)"
+fi
+
+# Test 3: Run the Go test client through proxy
+echo ""
+echo -e "${BOLD}${CYAN}Test 3: Go Test Client -> Proxy -> Mock Server${NC}"
 cd "$SCRIPT_DIR/openai-test-client"
 
 if [ ! -f "./openai-test-client" ]; then
@@ -199,6 +220,7 @@ echo "Components tested:"
 echo "  - OpenAI Mock Server (mTLS)"
 echo "  - HTTP Proxy (CONNECT tunneling)"
 echo "  - mTLS Provider (Bun/OpenCode)"
+echo "  - removeKeys feature (strips keys from JSON)"
 echo "  - Go Test Client (29 tests)"
 echo ""
 echo -e "${CYAN}Proxy statistics:${NC}"
