@@ -269,18 +269,18 @@ A custom OpenAI-compatible provider (`openai-mtls-provider`) enables OpenCode to
 
 ### Configuration
 
-The `opencode.json` configuration specifies the custom provider with mTLS certificates:
+The `opencode.json` configuration specifies the custom provider with mTLS certificates. It uses OpenCode's `{env:VAR}` syntax for environment variable expansion:
 
 ```json
 {
   "provider": {
     "mock-openai-mtls": {
-      "npm": "file:///path/to/openai-mtls-provider",
+      "npm": "file://{env:PWD}/openai-mtls-provider",
       "options": {
         "baseURL": "https://localhost:8000/v1",
-        "clientCert": "/path/to/certs/client.crt",
-        "clientKey": "/path/to/certs/client.key",
-        "caCert": "/path/to/certs/ca.crt"
+        "clientCert": "./certs/client.crt",
+        "clientKey": "./certs/client.key",
+        "caCert": "./certs/ca.crt"
       },
       "models": { ... }
     }
@@ -288,6 +288,9 @@ The `opencode.json` configuration specifies the custom provider with mTLS certif
   "model": "mock-openai-mtls/gpt-4o"
 }
 ```
+
+- `{env:PWD}` expands to the current working directory at runtime
+- Certificate paths are relative to the project root
 
 ### Available Models in OpenCode
 
@@ -345,6 +348,10 @@ go build -o openai-test-client .
 ### Test Client
 - Go 1.21+
 - `github.com/sashabaranov/go-openai`
+
+### mTLS Provider
+- Node.js 18+ / Bun
+- `@ai-sdk/openai-compatible` ^1.0.30
 
 ## License
 
