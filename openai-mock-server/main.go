@@ -1,11 +1,15 @@
 package main
 
 import (
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"log"
 	"math/rand"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
@@ -585,12 +589,34 @@ func router(w http.ResponseWriter, r *http.Request) {
 func main() {
 	rand.Seed(time.Now().UnixNano())
 
-	port := ":8000"
+	// Command line flags
+	port := flag.String("port", "8000", "Port to listen on")
+	certFile := flag.String("cert", "../certs/server.crt", "Server certificate file")
+	keyFile := flag.String("key", "../certs/server.key", "Server key file")
+	caFile := flag.String("ca", "../certs/ca.crt", "CA certificate file for client verification")
+	insecure := flag.Bool("insecure", false, "Run without mTLS (plain HTTP)")
+	flag.Parse()
+
+	http.HandleFunc("/", corsMiddleware(router))
+
+	addr := ":" + *port
 
 	fmt.Println("========================================")
-	fmt.Println("       OpenAI Mock Server v2.0")
+	fmt.Println("       OpenAI Mock Server v3.0")
 	fmt.Println("========================================")
-	fmt.Printf("Server running on http://localhost%s\n\n", port)
+
+	if *insecure {
+		fmt.Printf("Server running on http://localhost%s\n\n", addr)
+		fmt.Println("WARNING: Running in insecure mode (no TLS)")
+	} else {
+		fmt.Printf("Server running on https://localhost%s\n\n", addr)
+		fmt.Println("mTLS Authentication: ENABLED")
+		fmt.Printf("  CA:   %s\n", *caFile)
+		fmt.Printf("  Cert: %s\n", *certFile)
+		fmt.Printf("  Key:  %s\n", *keyFile)
+	}
+
+	fmt.Println("")
 	fmt.Println("Supported endpoints:")
 	fmt.Println("  GET  /v1/models              - List models")
 	fmt.Println("  GET  /v1/models/{id}         - Get model by ID")
@@ -602,9 +628,37 @@ func main() {
 	fmt.Println("  - Tool/function calling")
 	fmt.Println("  - CORS enabled")
 	fmt.Println("  - OpenAI-compatible error responses")
+	if !*insecure {
+		fmt.Println("  - mTLS client authentication")
+	}
 	fmt.Println("========================================")
 
-	http.HandleFunc("/", corsMiddleware(router))
+	if *insecure {
+		log.Fatal(http.ListenAndServe(addr, nil))
+	} else {
+		// Load CA certificate for client verification
+		caCert, err := os.ReadFile(*caFile)
+		if err != nil {
+			log.Fatalf("Failed to read CA certificate: %v", err)
+		}
 
-	log.Fatal(http.ListenAndServe(port, nil))
+		caCertPool := x509.NewCertPool()
+		if !caCertPool.AppendCertsFromPEM(caCert) {
+			log.Fatal("Failed to parse CA certificate")
+		}
+
+		// Configure TLS with mTLS
+		tlsConfig := &tls.Config{
+			ClientCAs:  caCertPool,
+			ClientAuth: tls.RequireAndVerifyClientCert,
+			MinVersion: tls.VersionTLS12,
+		}
+
+		server := &http.Server{
+			Addr:      addr,
+			TLSConfig: tlsConfig,
+		}
+
+		log.Fatal(server.ListenAndServeTLS(*certFile, *keyFile))
+	}
 }

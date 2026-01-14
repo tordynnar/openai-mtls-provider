@@ -2,9 +2,14 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"errors"
+	"flag"
 	"fmt"
 	"io"
+	"net/http"
+	"os"
 	"strings"
 	"time"
 
@@ -43,10 +48,61 @@ func section(name string) {
 }
 
 func main() {
-	// Configure client to use mock server
-	config := openai.DefaultConfig("mock-api-key")
-	config.BaseURL = "http://localhost:8000/v1"
-	client := openai.NewClientWithConfig(config)
+	// Command line flags
+	certFile := flag.String("cert", "../certs/client.crt", "Client certificate file")
+	keyFile := flag.String("key", "../certs/client.key", "Client key file")
+	caFile := flag.String("ca", "../certs/ca.crt", "CA certificate file for server verification")
+	insecure := flag.Bool("insecure", false, "Run without mTLS (plain HTTP)")
+	flag.Parse()
+
+	var client *openai.Client
+
+	if *insecure {
+		// Configure client without TLS
+		config := openai.DefaultConfig("mock-api-key")
+		config.BaseURL = "http://localhost:8000/v1"
+		client = openai.NewClientWithConfig(config)
+	} else {
+		// Load client certificate
+		cert, err := tls.LoadX509KeyPair(*certFile, *keyFile)
+		if err != nil {
+			fmt.Printf("Failed to load client certificate: %v\n", err)
+			os.Exit(1)
+		}
+
+		// Load CA certificate
+		caCert, err := os.ReadFile(*caFile)
+		if err != nil {
+			fmt.Printf("Failed to read CA certificate: %v\n", err)
+			os.Exit(1)
+		}
+
+		caCertPool := x509.NewCertPool()
+		if !caCertPool.AppendCertsFromPEM(caCert) {
+			fmt.Println("Failed to parse CA certificate")
+			os.Exit(1)
+		}
+
+		// Create TLS config
+		tlsConfig := &tls.Config{
+			Certificates: []tls.Certificate{cert},
+			RootCAs:      caCertPool,
+			MinVersion:   tls.VersionTLS12,
+		}
+
+		// Create HTTP client with mTLS
+		httpClient := &http.Client{
+			Transport: &http.Transport{
+				TLSClientConfig: tlsConfig,
+			},
+		}
+
+		// Configure OpenAI client with mTLS
+		config := openai.DefaultConfig("mock-api-key")
+		config.BaseURL = "https://localhost:8000/v1"
+		config.HTTPClient = httpClient
+		client = openai.NewClientWithConfig(config)
+	}
 
 	ctx := context.Background()
 
