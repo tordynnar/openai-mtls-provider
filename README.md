@@ -1,6 +1,6 @@
 # OpenAI Mock Server & Test Suite
 
-A complete mock OpenAI API server written in Go, along with a test client and OpenCode configuration for local development and testing.
+A complete mock OpenAI API server written in Go, along with a test client and OpenCode configuration for local development and testing. Supports mTLS (mutual TLS) authentication.
 
 ## Project Structure
 
@@ -8,32 +8,98 @@ A complete mock OpenAI API server written in Go, along with a test client and Op
 ./
 ├── README.md                 # This file
 ├── opencode.json             # OpenCode configuration for mock server
+├── certs/                    # TLS certificates
+│   └── generate.sh           # Script to generate CA, server, and client certs
 ├── openai-mock-server/       # Mock OpenAI API server (Go)
 │   ├── main.go
 │   ├── go.mod
-│   ├── go.sum
-│   └── openai-mock-server    # Compiled binary
+│   └── go.sum
 └── openai-test-client/       # Test client (Go)
     ├── main.go
     ├── go.mod
     └── go.sum
 ```
 
+## Quick Start
+
+```bash
+# 1. Generate certificates
+cd certs && ./generate.sh && cd ..
+
+# 2. Build and start the mock server (with mTLS)
+cd openai-mock-server
+go build -o openai-mock-server .
+./openai-mock-server
+
+# 3. Run tests (in another terminal)
+cd openai-test-client
+go build -o openai-test-client .
+./openai-test-client
+```
+
+## mTLS Authentication
+
+The server and client support mutual TLS authentication by default. Both parties verify each other's certificates.
+
+### Generating Certificates
+
+Run the certificate generation script:
+
+```bash
+cd certs
+./generate.sh
+```
+
+This creates:
+- `ca.crt` / `ca.key` - Certificate Authority
+- `server.crt` / `server.key` - Server certificate (CN=localhost)
+- `client.crt` / `client.key` - Client certificate (CN=test-client)
+
+### Server Flags
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `-port` | `8000` | Port to listen on |
+| `-cert` | `../certs/server.crt` | Server certificate file |
+| `-key` | `../certs/server.key` | Server key file |
+| `-ca` | `../certs/ca.crt` | CA certificate for client verification |
+| `-insecure` | `false` | Run without mTLS (plain HTTP) |
+
+### Client Flags
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `-cert` | `../certs/client.crt` | Client certificate file |
+| `-key` | `../certs/client.key` | Client key file |
+| `-ca` | `../certs/ca.crt` | CA certificate for server verification |
+| `-insecure` | `false` | Run without mTLS (plain HTTP) |
+
+### Running Without mTLS
+
+```bash
+# Server (insecure mode)
+./openai-mock-server -insecure
+
+# Client (insecure mode)
+./openai-test-client -insecure
+```
+
 ## OpenAI Mock Server
 
 A fully-featured mock OpenAI API server that simulates OpenAI's API responses for testing and development without incurring API costs.
 
-### Features
+### Endpoints
 
 - **GET /v1/models** - List available models
 - **GET /v1/models/{id}** - Get model by ID
 - **POST /v1/chat/completions** - Chat completions (streaming & non-streaming)
 - **POST /v1/embeddings** - Generate embeddings
 
-### Additional Capabilities
+### Features
 
 | Feature | Description |
 |---------|-------------|
+| mTLS Authentication | Mutual TLS with client certificate verification |
 | SSE Streaming | Real-time word-by-word streaming via Server-Sent Events |
 | Tool/Function Calling | Supports `tools` parameter with mock tool call responses |
 | CORS | Full CORS support for browser-based clients |
@@ -55,81 +121,73 @@ A fully-featured mock OpenAI API server that simulates OpenAI's API responses fo
 | text-embedding-3-small | Embedding (1536 dims) |
 | text-embedding-3-large | Embedding (3072 dims) |
 
-### Running the Server
-
-```bash
-cd openai-mock-server
-go build -o openai-mock-server .
-./openai-mock-server
-```
-
-The server starts on `http://localhost:8000`.
-
-### Example Requests
+### Example Requests (with mTLS)
 
 **List Models:**
 ```bash
-curl http://localhost:8000/v1/models
+curl --cacert certs/ca.crt \
+     --cert certs/client.crt \
+     --key certs/client.key \
+     https://localhost:8000/v1/models
 ```
 
 **Chat Completion:**
 ```bash
-curl http://localhost:8000/v1/chat/completions \
-  -H "Content-Type: application/json" \
-  -d '{
-    "model": "gpt-4o",
-    "messages": [{"role": "user", "content": "Hello!"}]
-  }'
+curl --cacert certs/ca.crt \
+     --cert certs/client.crt \
+     --key certs/client.key \
+     https://localhost:8000/v1/chat/completions \
+     -H "Content-Type: application/json" \
+     -d '{
+       "model": "gpt-4o",
+       "messages": [{"role": "user", "content": "Hello!"}]
+     }'
 ```
 
 **Chat Completion (Streaming):**
 ```bash
-curl -N http://localhost:8000/v1/chat/completions \
-  -H "Content-Type: application/json" \
-  -d '{
-    "model": "gpt-4o",
-    "messages": [{"role": "user", "content": "Hello!"}],
-    "stream": true
-  }'
+curl -N --cacert certs/ca.crt \
+     --cert certs/client.crt \
+     --key certs/client.key \
+     https://localhost:8000/v1/chat/completions \
+     -H "Content-Type: application/json" \
+     -d '{
+       "model": "gpt-4o",
+       "messages": [{"role": "user", "content": "Hello!"}],
+       "stream": true
+     }'
 ```
 
 **Embeddings:**
 ```bash
-curl http://localhost:8000/v1/embeddings \
-  -H "Content-Type: application/json" \
-  -d '{
-    "model": "text-embedding-ada-002",
-    "input": "Hello world"
-  }'
+curl --cacert certs/ca.crt \
+     --cert certs/client.crt \
+     --key certs/client.key \
+     https://localhost:8000/v1/embeddings \
+     -H "Content-Type: application/json" \
+     -d '{
+       "model": "text-embedding-ada-002",
+       "input": "Hello world"
+     }'
 ```
 
-**With Tools/Functions:**
+### Example Requests (Insecure Mode)
+
+When running with `-insecure`:
+
 ```bash
-curl http://localhost:8000/v1/chat/completions \
-  -H "Content-Type: application/json" \
-  -d '{
-    "model": "gpt-4o",
-    "messages": [{"role": "user", "content": "What is the weather?"}],
-    "tools": [{
-      "type": "function",
-      "function": {
-        "name": "get_weather",
-        "description": "Get weather for a location"
-      }
-    }],
-    "tool_choice": "required"
-  }'
+curl http://localhost:8000/v1/models
 ```
 
 ## Test Client
 
-A comprehensive Go test client using the official `sashabaranov/go-openai` library that validates all mock server endpoints.
+A comprehensive Go test client using the `sashabaranov/go-openai` library that validates all mock server endpoints.
 
 ### Running Tests
 
 ```bash
 cd openai-test-client
-go run main.go
+./openai-test-client
 ```
 
 ### Test Coverage (26 Tests)
@@ -176,47 +234,18 @@ All tests passed!
 
 The `opencode.json` configuration allows you to use the mock server with [OpenCode](https://opencode.ai).
 
-### Configuration
-
-The config defines a custom provider `mock-openai` pointing to the local server:
-
-```json
-{
-  "$schema": "https://opencode.ai/config.json",
-  "provider": {
-    "mock-openai": {
-      "npm": "@ai-sdk/openai-compatible",
-      "name": "Mock OpenAI Server",
-      "options": {
-        "baseURL": "http://localhost:8000/v1"
-      },
-      "models": {
-        "gpt-4o": { "name": "GPT-4o (Mock)", ... },
-        "gpt-4o-mini": { "name": "GPT-4o Mini (Mock)", ... },
-        ...
-      }
-    }
-  },
-  "model": "mock-openai/gpt-4o"
-}
-```
+**Note:** OpenCode integration requires insecure mode as it doesn't support mTLS.
 
 ### Usage with OpenCode
 
-1. Start the mock server:
+1. Start the mock server in insecure mode:
    ```bash
-   cd openai-mock-server && ./openai-mock-server
+   cd openai-mock-server && ./openai-mock-server -insecure
    ```
 
-2. Run OpenCode from the `ai` directory (where `opencode.json` is located):
+2. Run OpenCode:
    ```bash
-   cd .
    opencode run "Your message here"
-   ```
-
-   Or start the TUI:
-   ```bash
-   opencode
    ```
 
 ### Available Models in OpenCode
@@ -229,20 +258,19 @@ The config defines a custom provider `mock-openai` pointing to the local server:
 | mock-openai/gpt-4 | 8K | 4K |
 | mock-openai/gpt-3.5-turbo | 16K | 4K |
 
-## Quick Start
+## Building from Source
 
 ```bash
-# Terminal 1: Start the mock server
-cd ./openai-mock-server
-./openai-mock-server
+# Generate certificates
+cd certs && ./generate.sh && cd ..
 
-# Terminal 2: Run tests
-cd ./openai-test-client
-go run main.go
+# Build mock server
+cd openai-mock-server
+go build -o openai-mock-server .
 
-# Terminal 3: Use with OpenCode
-cd .
-opencode run "Hello, world!"
+# Build test client
+cd ../openai-test-client
+go build -o openai-test-client .
 ```
 
 ## Dependencies
@@ -254,18 +282,6 @@ opencode run "Hello, world!"
 ### Test Client
 - Go 1.21+
 - `github.com/sashabaranov/go-openai`
-
-## Building from Source
-
-```bash
-# Build mock server
-cd openai-mock-server
-go build -o openai-mock-server .
-
-# Build test client (optional, can run with go run)
-cd openai-test-client
-go build -o openai-test-client .
-```
 
 ## License
 
