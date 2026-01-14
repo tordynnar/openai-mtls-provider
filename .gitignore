@@ -42,3 +42,11 @@ certs/*.crt
 certs/*.csr
 certs/*.srl
 certs/*.ext
+
+# OpenCode Source code
+/opencode/
+
+# mTLS Provider build artifacts
+openai-mtls-provider/dist/
+openai-mtls-provider/node_modules/
+openai-mtls-provider/*.tgz

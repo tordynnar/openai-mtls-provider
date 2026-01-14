@@ -14,10 +14,14 @@ A complete mock OpenAI API server written in Go, along with a test client and Op
 │   ├── main.go
 │   ├── go.mod
 │   └── go.sum
-└── openai-test-client/       # Test client (Go)
-    ├── main.go
-    ├── go.mod
-    └── go.sum
+├── openai-test-client/       # Test client (Go)
+│   ├── main.go
+│   ├── go.mod
+│   └── go.sum
+└── openai-mtls-provider/     # Custom mTLS provider for OpenCode (TypeScript)
+    ├── src/index.ts
+    ├── package.json
+    └── tsconfig.json
 ```
 
 ## Quick Start
@@ -232,31 +236,90 @@ All tests passed!
 
 ## OpenCode Integration
 
-The `opencode.json` configuration allows you to use the mock server with [OpenCode](https://opencode.ai).
+The `opencode.json` configuration allows you to use the mock server with [OpenCode](https://opencode.ai) using mTLS authentication.
 
-**Note:** OpenCode integration requires insecure mode as it doesn't support mTLS.
+### Custom mTLS Provider
 
-### Usage with OpenCode
+A custom OpenAI-compatible provider (`openai-mtls-provider`) enables OpenCode to use mTLS authentication. The provider uses Bun's native TLS options to present client certificates.
 
-1. Start the mock server in insecure mode:
+### Setup
+
+1. Build the mTLS provider:
    ```bash
-   cd openai-mock-server && ./openai-mock-server -insecure
+   cd openai-mtls-provider
+   npm install
+   npm run build
+   cd ..
    ```
 
-2. Run OpenCode:
+2. Generate certificates (if not already done):
+   ```bash
+   cd certs && ./generate.sh && cd ..
+   ```
+
+3. Start the mock server with mTLS:
+   ```bash
+   cd openai-mock-server && ./openai-mock-server
+   ```
+
+4. Run OpenCode:
    ```bash
    opencode run "Your message here"
    ```
+
+### Configuration
+
+The `opencode.json` configuration specifies the custom provider with mTLS certificates:
+
+```json
+{
+  "provider": {
+    "mock-openai-mtls": {
+      "npm": "file:///path/to/openai-mtls-provider",
+      "options": {
+        "baseURL": "https://localhost:8000/v1",
+        "clientCert": "/path/to/certs/client.crt",
+        "clientKey": "/path/to/certs/client.key",
+        "caCert": "/path/to/certs/ca.crt"
+      },
+      "models": { ... }
+    }
+  },
+  "model": "mock-openai-mtls/gpt-4o"
+}
+```
 
 ### Available Models in OpenCode
 
 | Model | Context | Output |
 |-------|---------|--------|
-| mock-openai/gpt-4o | 128K | 16K |
-| mock-openai/gpt-4o-mini | 128K | 16K |
-| mock-openai/gpt-4-turbo | 128K | 4K |
-| mock-openai/gpt-4 | 8K | 4K |
-| mock-openai/gpt-3.5-turbo | 16K | 4K |
+| mock-openai-mtls/gpt-4o | 128K | 16K |
+| mock-openai-mtls/gpt-4o-mini | 128K | 16K |
+| mock-openai-mtls/gpt-4-turbo | 128K | 4K |
+| mock-openai-mtls/gpt-4 | 8K | 4K |
+| mock-openai-mtls/gpt-3.5-turbo | 16K | 4K |
+
+## mTLS Provider
+
+The `openai-mtls-provider` is a custom AI SDK provider that adds mTLS support.
+
+### Features
+
+- Compatible with `@ai-sdk/openai-compatible`
+- Uses Bun's native TLS options for client certificate authentication
+- Configurable certificate paths in `opencode.json`
+- Falls back to standard fetch when no certificates are provided
+
+### Options
+
+| Option | Type | Description |
+|--------|------|-------------|
+| `baseURL` | string | Base URL for the OpenAI-compatible API |
+| `clientCert` | string | Path to client certificate (PEM format) |
+| `clientKey` | string | Path to client private key (PEM format) |
+| `caCert` | string | Path to CA certificate (PEM format) |
+| `apiKey` | string | Optional API key for authentication |
+| `headers` | object | Optional custom headers |
 
 ## Building from Source
 
