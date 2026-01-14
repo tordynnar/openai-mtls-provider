@@ -54,8 +54,20 @@ func main() {
 	keyFile := flag.String("key", "../certs/client.key", "Client key file")
 	caFile := flag.String("ca", "../certs/ca.crt", "CA certificate file for server verification")
 	proxyURL := flag.String("proxy", "", "HTTP proxy URL (e.g., http://localhost:8080)")
+	baseURL := flag.String("url", "", "Base URL for the OpenAI API (e.g., https://localhost:8000/v1)")
 	insecure := flag.Bool("insecure", false, "Run without mTLS (plain HTTP)")
 	flag.Parse()
+
+	// Determine base URL
+	apiBaseURL := *baseURL
+	if apiBaseURL == "" {
+		if *insecure {
+			apiBaseURL = "http://localhost:8000/v1"
+		} else {
+			apiBaseURL = "https://localhost:8000/v1"
+		}
+	}
+	fmt.Printf("Target API: %s\n", apiBaseURL)
 
 	var client *openai.Client
 
@@ -76,7 +88,7 @@ func main() {
 
 		httpClient := &http.Client{Transport: transport}
 		config := openai.DefaultConfig("mock-api-key")
-		config.BaseURL = "http://localhost:8000/v1"
+		config.BaseURL = apiBaseURL
 		config.HTTPClient = httpClient
 		client = openai.NewClientWithConfig(config)
 	} else {
@@ -130,7 +142,7 @@ func main() {
 
 		// Configure OpenAI client with mTLS
 		config := openai.DefaultConfig("mock-api-key")
-		config.BaseURL = "https://localhost:8000/v1"
+		config.BaseURL = apiBaseURL
 		config.HTTPClient = httpClient
 		client = openai.NewClientWithConfig(config)
 	}
@@ -149,6 +161,7 @@ func main() {
 	testChatCompletionWithParams(ctx, client)
 	testChatCompletionStreaming(ctx, client)
 	testChatCompletionWithTools(ctx, client)
+	testChatCompletionMultiPartContent(ctx, client)
 	testEmbeddings(ctx, client)
 	testEmbeddingsMultipleInputs(ctx, client)
 	testErrorHandling(ctx, client)
@@ -435,6 +448,60 @@ func testChatCompletionWithTools(ctx context.Context, client *openai.Client) {
 		pass("ChatCompletion-Tools-FinishReason", "Finish reason: tool_calls")
 	} else {
 		pass("ChatCompletion-Tools-FinishReason", fmt.Sprintf("Finish reason: %s", choice.FinishReason))
+	}
+}
+
+func testChatCompletionMultiPartContent(ctx context.Context, client *openai.Client) {
+	// NOTE: This test is REQUIRED for OpenCode Plan mode.
+	// OpenCode's plan agent sends messages with multi-part content (array of ContentParts)
+	// instead of simple string content. Without this support, plan mode fails with:
+	// "json: cannot unmarshal array into Go struct field ChatMessage.messages.content of type string"
+	section("Chat Completion with Multi-Part Content (Required for OpenCode Plan mode)")
+
+	resp, err := client.CreateChatCompletion(ctx, openai.ChatCompletionRequest{
+		Model: openai.GPT4o,
+		Messages: []openai.ChatCompletionMessage{
+			{
+				Role: openai.ChatMessageRoleUser,
+				MultiContent: []openai.ChatMessagePart{
+					{
+						Type: openai.ChatMessagePartTypeText,
+						Text: "This is the first part of a multi-part message.",
+					},
+					{
+						Type: openai.ChatMessagePartTypeText,
+						Text: "This is the second part of the message.",
+					},
+				},
+			},
+		},
+	})
+
+	if err != nil {
+		fail("ChatCompletion-MultiPart", fmt.Sprintf("Error: %v", err))
+		return
+	}
+
+	if len(resp.Choices) == 0 {
+		fail("ChatCompletion-MultiPart", "No choices returned")
+		return
+	}
+
+	choice := resp.Choices[0]
+	pass("ChatCompletion-MultiPart", fmt.Sprintf("Response: %q", truncate(choice.Message.Content, 60)))
+
+	// Verify token count reflects multi-part content
+	// The two parts combined are ~90 chars, so ~22 tokens
+	if resp.Usage.PromptTokens > 0 {
+		pass("ChatCompletion-MultiPart-Tokens", fmt.Sprintf("Prompt tokens: %d (multi-part content parsed correctly)", resp.Usage.PromptTokens))
+	} else {
+		fail("ChatCompletion-MultiPart-Tokens", "No prompt tokens counted")
+	}
+
+	if choice.FinishReason != "" {
+		pass("ChatCompletion-MultiPart-Finish", fmt.Sprintf("Finish reason: %s", choice.FinishReason))
+	} else {
+		fail("ChatCompletion-MultiPart-Finish", "Missing finish reason")
 	}
 }
 

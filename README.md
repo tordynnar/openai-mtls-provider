@@ -76,6 +76,7 @@ This creates:
 
 | Flag | Default | Description |
 |------|---------|-------------|
+| `-url` | `https://localhost:8000/v1` | Base URL for the OpenAI API |
 | `-cert` | `../certs/client.crt` | Client certificate file |
 | `-key` | `../certs/client.key` | Client key file |
 | `-ca` | `../certs/ca.crt` | CA certificate for server verification |
@@ -208,7 +209,7 @@ cd openai-test-client
 ./openai-test-client
 ```
 
-### Test Coverage (26 Tests)
+### Test Coverage (29 Tests)
 
 | Category | Tests | Description |
 |----------|-------|-------------|
@@ -218,6 +219,7 @@ cd openai-test-client
 | Chat with Params | 1 | Temperature, max_tokens, N choices |
 | SSE Streaming | 4 | Stream init, chunk count, content assembly, finish |
 | Tool Calling | 3 | Tool calls, arguments, finish_reason |
+| Multi-Part Content | 3 | Array content parsing, tokens, finish (Required for OpenCode Plan mode) |
 | Embeddings | 5 | Dimensions, index, model, usage |
 | Multi Embeddings | 2 | Batch processing, index ordering |
 | Error Handling | 2 | Missing model, empty messages |
@@ -241,8 +243,8 @@ cd openai-test-client
 
 ...
 
-Total Tests: 26
-Passed: 26
+Total Tests: 29
+Passed: 29
 Failed: 0
 
 All tests passed!
@@ -391,7 +393,7 @@ This script:
 1. Starts the mock server with mTLS
 2. Starts the HTTP proxy
 3. Tests OpenCode with the mTLS provider through the proxy
-4. Runs all 26 Go test client tests through the proxy
+4. Runs all 29 Go test client tests through the proxy
 5. Cleans up all processes on exit
 
 ## Building from Source

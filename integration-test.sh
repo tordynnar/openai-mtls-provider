@@ -172,7 +172,7 @@ if [ ! -f "./openai-test-client" ]; then
     go build -o openai-test-client .
 fi
 
-TEST_OUTPUT=$(./openai-test-client -proxy http://localhost:8080 2>&1)
+TEST_OUTPUT=$(./openai-test-client -url https://localhost:8000/v1 -proxy http://localhost:8080 2>&1)
 TEST_EXIT=$?
 
 PASSED=$(echo "$TEST_OUTPUT" | grep -o "Passed: [0-9]*" | grep -o "[0-9]*")
@@ -199,7 +199,7 @@ echo "Components tested:"
 echo "  - OpenAI Mock Server (mTLS)"
 echo "  - HTTP Proxy (CONNECT tunneling)"
 echo "  - mTLS Provider (Bun/OpenCode)"
-echo "  - Go Test Client (26 tests)"
+echo "  - Go Test Client (29 tests)"
 echo ""
 echo -e "${CYAN}Proxy statistics:${NC}"
 FINAL_TUNNEL_COUNT=$(grep -c "Tunnel established" /tmp/http-proxy.log 2>/dev/null || echo "0")

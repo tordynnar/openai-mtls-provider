@@ -34,7 +34,76 @@ type ModelsResponse struct {
 }
 
 // Chat Completions
+
+// ContentPart represents a part of a multi-part content message
+type ContentPart struct {
+	Type     string `json:"type"`
+	Text     string `json:"text,omitempty"`
+	ImageURL *struct {
+		URL    string `json:"url"`
+		Detail string `json:"detail,omitempty"`
+	} `json:"image_url,omitempty"`
+}
+
+// MessageContent can be either a string or an array of ContentParts
+type MessageContent struct {
+	Text  string
+	Parts []ContentPart
+}
+
+func (mc *MessageContent) UnmarshalJSON(data []byte) error {
+	// Try to unmarshal as a string first
+	var text string
+	if err := json.Unmarshal(data, &text); err == nil {
+		mc.Text = text
+		mc.Parts = nil
+		return nil
+	}
+
+	// Try to unmarshal as an array of ContentParts
+	var parts []ContentPart
+	if err := json.Unmarshal(data, &parts); err == nil {
+		mc.Parts = parts
+		mc.Text = ""
+		return nil
+	}
+
+	// If neither works, return an error
+	return fmt.Errorf("content must be a string or array of content parts")
+}
+
+func (mc MessageContent) MarshalJSON() ([]byte, error) {
+	if len(mc.Parts) > 0 {
+		return json.Marshal(mc.Parts)
+	}
+	return json.Marshal(mc.Text)
+}
+
+// GetText returns the text content, extracting from parts if necessary
+func (mc *MessageContent) GetText() string {
+	if mc.Text != "" {
+		return mc.Text
+	}
+	// Extract text from parts
+	var texts []string
+	for _, part := range mc.Parts {
+		if part.Type == "text" && part.Text != "" {
+			texts = append(texts, part.Text)
+		}
+	}
+	return strings.Join(texts, " ")
+}
+
 type ChatMessage struct {
+	Role       string         `json:"role"`
+	Content    MessageContent `json:"content,omitempty"`
+	ToolCalls  []ToolCall     `json:"tool_calls,omitempty"`
+	ToolCallID string         `json:"tool_call_id,omitempty"`
+	Name       string         `json:"name,omitempty"`
+}
+
+// ResponseMessage is used for responses (always string content)
+type ResponseMessage struct {
 	Role       string     `json:"role"`
 	Content    string     `json:"content,omitempty"`
 	ToolCalls  []ToolCall `json:"tool_calls,omitempty"`
@@ -324,16 +393,16 @@ func chatCompletionsHandler(w http.ResponseWriter, r *http.Request) {
 		mockContent := mockResponses[rand.Intn(len(mockResponses))]
 		responseMessage = ChatMessage{
 			Role:    "assistant",
-			Content: mockContent,
+			Content: MessageContent{Text: mockContent},
 		}
 	}
 
 	// Calculate tokens
 	promptTokens := 0
 	for _, msg := range req.Messages {
-		promptTokens += estimateTokens(msg.Content)
+		promptTokens += estimateTokens(msg.Content.GetText())
 	}
-	completionTokens := estimateTokens(responseMessage.Content)
+	completionTokens := estimateTokens(responseMessage.Content.GetText())
 
 	// Determine number of choices
 	n := 1
