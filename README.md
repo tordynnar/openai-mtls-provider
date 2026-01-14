@@ -71,6 +71,7 @@ This creates:
 | `-key` | `../certs/server.key` | Server key file |
 | `-ca` | `../certs/ca.crt` | CA certificate for client verification |
 | `-insecure` | `false` | Run without mTLS (plain HTTP) |
+| `-verbose` | `false` | Enable verbose logging (shows headers) |
 
 ### Client Flags
 
@@ -296,7 +297,10 @@ The `opencode.json` configuration specifies the custom provider with mTLS certif
         "baseURL": "https://localhost:8000/v1",
         "clientCert": "./certs/client.crt",
         "clientKey": "./certs/client.key",
-        "caCert": "./certs/ca.crt"
+        "caCert": "./certs/ca.crt",
+        "headers": {
+          "X-Custom-Header": "my-value"
+        }
       },
       "models": { ... }
     }
@@ -307,6 +311,7 @@ The `opencode.json` configuration specifies the custom provider with mTLS certif
 
 - `{env:PWD}` expands to the current working directory at runtime
 - Certificate paths are relative to the project root
+- Custom headers are passed through to all API requests
 
 ### Available Models in OpenCode
 
@@ -339,7 +344,7 @@ The `openai-mtls-provider` is a custom AI SDK provider that adds mTLS and HTTP p
 | `clientKey` | string | Path to client private key (PEM format) |
 | `caCert` | string | Path to CA certificate (PEM format) |
 | `apiKey` | string | Optional API key for authentication |
-| `headers` | object | Optional custom headers |
+| `headers` | object | Optional custom headers (e.g., `{"X-Custom-Header": "value"}`) |
 | `proxy` | string | Optional HTTP proxy URL (e.g., `http://localhost:8080`) |
 
 ## HTTP Proxy Server

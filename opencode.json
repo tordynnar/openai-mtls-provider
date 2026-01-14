@@ -10,7 +10,11 @@
         "clientKey": "./certs/client.key",
         "caCert": "./certs/ca.crt",
         "apiKey": "mock-api-key",
-        "proxy": "http://localhost:8080"
+        "proxy": "http://localhost:8080",
+        "headers": {
+          "X-Custom-Header": "test-value-123",
+          "X-Request-Source": "opencode-mtls"
+        }
       },
       "models": {
         "gpt-4o": {

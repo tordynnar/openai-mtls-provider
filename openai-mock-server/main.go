@@ -633,7 +633,38 @@ func embeddingsHandler(w http.ResponseWriter, r *http.Request) {
 // Router
 // ============================================================================
 
+// Global verbose flag
+var verbose bool
+
+func logRequest(r *http.Request) {
+	if !verbose {
+		return
+	}
+
+	log.Printf("[%s] %s", r.Method, r.URL.Path)
+
+	// Log custom headers (X-* headers)
+	for name, values := range r.Header {
+		if strings.HasPrefix(name, "X-") {
+			for _, v := range values {
+				log.Printf("  Header: %s: %s", name, v)
+			}
+		}
+	}
+
+	// Log Authorization header (masked)
+	if auth := r.Header.Get("Authorization"); auth != "" {
+		if len(auth) > 20 {
+			log.Printf("  Header: Authorization: %s...%s", auth[:10], auth[len(auth)-4:])
+		} else {
+			log.Printf("  Header: Authorization: %s", auth)
+		}
+	}
+}
+
 func router(w http.ResponseWriter, r *http.Request) {
+	logRequest(r)
+
 	path := r.URL.Path
 
 	switch {
@@ -664,7 +695,10 @@ func main() {
 	keyFile := flag.String("key", "../certs/server.key", "Server key file")
 	caFile := flag.String("ca", "../certs/ca.crt", "CA certificate file for client verification")
 	insecure := flag.Bool("insecure", false, "Run without mTLS (plain HTTP)")
+	verboseFlag := flag.Bool("verbose", false, "Enable verbose logging (shows headers)")
 	flag.Parse()
+
+	verbose = *verboseFlag
 
 	http.HandleFunc("/", corsMiddleware(router))
 
@@ -699,6 +733,9 @@ func main() {
 	fmt.Println("  - OpenAI-compatible error responses")
 	if !*insecure {
 		fmt.Println("  - mTLS client authentication")
+	}
+	if verbose {
+		fmt.Println("  - Verbose logging ENABLED")
 	}
 	fmt.Println("========================================")
 
