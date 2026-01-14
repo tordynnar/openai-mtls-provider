@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"math/rand"
 	"net/http"
@@ -338,8 +339,20 @@ func chatCompletionsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Read body for logging in verbose mode
+	bodyBytes, err := io.ReadAll(r.Body)
+	if err != nil {
+		param := "body"
+		sendError(w, http.StatusBadRequest, fmt.Sprintf("Failed to read request body: %v", err), "invalid_request_error", &param, nil)
+		return
+	}
+
+	if verbose {
+		log.Printf("  Request body: %s", string(bodyBytes))
+	}
+
 	var req ChatCompletionRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := json.Unmarshal(bodyBytes, &req); err != nil {
 		param := "body"
 		sendError(w, http.StatusBadRequest, fmt.Sprintf("Invalid request body: %v", err), "invalid_request_error", &param, nil)
 		return

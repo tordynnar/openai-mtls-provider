@@ -14,7 +14,8 @@
         "headers": {
           "X-Custom-Header": "test-value-123",
           "X-Request-Source": "opencode-mtls"
-        }
+        },
+        "removeKeys": ["frequency_penalty", "presence_penalty"]
       },
       "models": {
         "gpt-4o": {

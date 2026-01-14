@@ -300,7 +300,8 @@ The `opencode.json` configuration specifies the custom provider with mTLS certif
         "caCert": "./certs/ca.crt",
         "headers": {
           "X-Custom-Header": "my-value"
-        }
+        },
+        "removeKeys": ["frequency_penalty", "presence_penalty"]
       },
       "models": { ... }
     }
@@ -312,6 +313,7 @@ The `opencode.json` configuration specifies the custom provider with mTLS certif
 - `{env:PWD}` expands to the current working directory at runtime
 - Certificate paths are relative to the project root
 - Custom headers are passed through to all API requests
+- `removeKeys` recursively strips specified keys from all JSON request bodies
 
 ### Available Models in OpenCode
 
@@ -346,6 +348,7 @@ The `openai-mtls-provider` is a custom AI SDK provider that adds mTLS and HTTP p
 | `apiKey` | string | Optional API key for authentication |
 | `headers` | object | Optional custom headers (e.g., `{"X-Custom-Header": "value"}`) |
 | `proxy` | string | Optional HTTP proxy URL (e.g., `http://localhost:8080`) |
+| `removeKeys` | string[] | Keys to recursively remove from JSON request bodies |
 
 ## HTTP Proxy Server
 

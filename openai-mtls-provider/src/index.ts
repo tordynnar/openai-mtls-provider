@@ -47,6 +47,12 @@ export interface MTLSProviderSettings {
    * HTTP proxy URL (e.g., "http://localhost:8080")
    */
   proxy?: string;
+
+  /**
+   * List of keys to recursively remove from JSON request bodies.
+   * Useful for stripping fields not supported by certain API endpoints.
+   */
+  removeKeys?: string[];
 }
 
 /**
@@ -64,6 +70,33 @@ interface FetchOptions {
   clientKey?: string;
   caCert?: string;
   proxy?: string;
+  removeKeys?: string[];
+}
+
+/**
+ * Recursively removes specified keys from an object or array.
+ * Traverses nested objects and arrays to remove keys at all levels.
+ */
+function removeKeysFromObject(obj: unknown, keysToRemove: string[]): unknown {
+  if (obj === null || obj === undefined) {
+    return obj;
+  }
+
+  if (Array.isArray(obj)) {
+    return obj.map(item => removeKeysFromObject(item, keysToRemove));
+  }
+
+  if (typeof obj === 'object') {
+    const result: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(obj)) {
+      if (!keysToRemove.includes(key)) {
+        result[key] = removeKeysFromObject(value, keysToRemove);
+      }
+    }
+    return result;
+  }
+
+  return obj;
 }
 
 /**
@@ -109,6 +142,20 @@ function createCustomFetch(options: FetchOptions): typeof fetch {
       ...init,
     };
 
+    // Remove specified keys from JSON request body if configured
+    if (options.removeKeys && options.removeKeys.length > 0 && fetchOptions.body) {
+      try {
+        const bodyStr = typeof fetchOptions.body === 'string'
+          ? fetchOptions.body
+          : fetchOptions.body.toString();
+        const bodyJson = JSON.parse(bodyStr);
+        const modifiedBody = removeKeysFromObject(bodyJson, options.removeKeys);
+        fetchOptions.body = JSON.stringify(modifiedBody);
+      } catch (e) {
+        // If body is not valid JSON, leave it unchanged
+      }
+    }
+
     // Add TLS options if certificates are provided
     if (cert && key && ca) {
       // @ts-ignore - Bun supports tls option for mTLS
@@ -141,18 +188,20 @@ function createCustomFetch(options: FetchOptions): typeof fetch {
  * When proxy is provided, all requests will be routed through the HTTP proxy.
  */
 export function createOpenAICompatible(options: MTLSProviderSettings) {
-  // Build the fetch function if mTLS certificates or proxy are provided
+  // Build the fetch function if mTLS certificates, proxy, or removeKeys are provided
   let customFetch: typeof fetch | undefined;
 
   const hasMTLS = options.clientCert && options.clientKey && options.caCert;
   const hasProxy = !!options.proxy;
+  const hasRemoveKeys = options.removeKeys && options.removeKeys.length > 0;
 
-  if (hasMTLS || hasProxy) {
+  if (hasMTLS || hasProxy || hasRemoveKeys) {
     customFetch = createCustomFetch({
       clientCert: options.clientCert,
       clientKey: options.clientKey,
       caCert: options.caCert,
       proxy: options.proxy,
+      removeKeys: options.removeKeys,
     });
   }
 
