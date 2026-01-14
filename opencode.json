@@ -9,7 +9,6 @@
         "clientCert": "./certs/client.crt",
         "clientKey": "./certs/client.key",
         "caCert": "./certs/ca.crt",
-        "apiKey": "mock-api-key",
         "proxy": "http://localhost:8080",
         "headers": {
           "X-Custom-Header": "test-value-123",
