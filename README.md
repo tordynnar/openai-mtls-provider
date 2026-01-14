@@ -379,6 +379,21 @@ Add the proxy to your `opencode.json`:
 }
 ```
 
+## Integration Testing
+
+Run the full integration test suite:
+
+```bash
+./integration-test.sh
+```
+
+This script:
+1. Starts the mock server with mTLS
+2. Starts the HTTP proxy
+3. Tests OpenCode with the mTLS provider through the proxy
+4. Runs all 26 Go test client tests through the proxy
+5. Cleans up all processes on exit
+
 ## Building from Source
 
 ```bash
