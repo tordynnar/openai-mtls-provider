@@ -138,7 +138,7 @@ echo ""
 echo -e "${BOLD}${CYAN}Test 1: OpenCode -> mTLS Provider -> Proxy -> Mock Server${NC}"
 cd "$SCRIPT_DIR"
 
-OPENCODE_RESPONSE=$(opencode run "Say hello in exactly 5 words" 2>&1)
+OPENCODE_RESPONSE=$(timeout 60 opencode run "Say hello in exactly 5 words" 2>&1)
 OPENCODE_EXIT=$?
 
 if [ $OPENCODE_EXIT -eq 0 ] && [ -n "$OPENCODE_RESPONSE" ]; then
