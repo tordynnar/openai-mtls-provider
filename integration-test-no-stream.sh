@@ -131,31 +131,12 @@ fi
 echo ""
 
 # ---- Test 1: OpenCode with no-stream provider ----
-# The mock server returns generic canned responses, so the opencode agent may
-# loop (it keeps trying to "resolve" the user's request). We launch it in the
-# background, wait for at least one request to arrive at the mock server, then
-# kill it and inspect the logs.
 echo -e "${BOLD}${CYAN}Test 1: OpenCode -> No-Stream Provider -> Proxy -> Mock Server${NC}"
 cd "$SCRIPT_DIR"
 
-opencode run -m mock-openai-no-stream/gpt-4o "Say hello in exactly 5 words" </dev/null >/tmp/opencode-nostream-out.log 2>&1 &
-OPENCODE_PID=$!
-echo -e "  OpenCode started (PID: $OPENCODE_PID), waiting for requests..."
-
-# Wait up to 15 seconds for at least one POST request to reach the mock server
-for i in $(seq 1 30); do
-    if grep -q '\[POST\]' /tmp/mock-server-nostream.log 2>/dev/null; then
-        break
-    fi
-    sleep 0.5
-done
-
-# Give it a moment more to log the request body
-sleep 1
-
-# Kill opencode — we only need to verify requests were made correctly
-kill "$OPENCODE_PID" 2>/dev/null || true
-wait "$OPENCODE_PID" 2>/dev/null || true
+# The mock server now returns realistic responses that satisfy the agent,
+# so opencode should complete naturally.
+timeout 60 opencode run -m mock-openai-no-stream/gpt-4o "Say hello in exactly 5 words" </dev/null >/tmp/opencode-nostream-out.log 2>&1 || true
 OPENCODE_PID=""
 
 POST_COUNT=$(grep -c '\[POST\]' /tmp/mock-server-nostream.log 2>/dev/null || echo "0")

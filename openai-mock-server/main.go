@@ -242,12 +242,51 @@ var mockModels = []Model{
 	{ID: "text-embedding-3-large", Object: "model", Created: 1705953180, OwnedBy: "openai"},
 }
 
-var mockResponses = []string{
-	"Hello! I'm a mock OpenAI server. How can I help you today?",
-	"I'm here to assist with your testing needs. This is a simulated response.",
-	"This is a mock response from the OpenAI-compatible server. Everything is working correctly!",
-	"Greetings! I'm a test server simulating OpenAI's API. Feel free to experiment!",
-	"Mock response generated successfully. Your API integration is working!",
+// echoResponse extracts the last user message and produces a direct, realistic
+// answer so that agent-style callers (like opencode) treat the task as complete
+// and stop looping.
+func echoResponse(messages []ChatMessage) string {
+	// Find the last user message
+	var lastUser string
+	for i := len(messages) - 1; i >= 0; i-- {
+		if messages[i].Role == "user" {
+			lastUser = messages[i].Content.GetText()
+			break
+		}
+	}
+
+	if lastUser == "" {
+		return "Done."
+	}
+
+	lower := strings.ToLower(lastUser)
+
+	// Handle common patterns with direct, satisfying answers
+	switch {
+	case strings.Contains(lower, "hello") && strings.Contains(lower, "5 words"):
+		return "Hello, it is nice today!"
+	case strings.Contains(lower, "hello"):
+		return "Hello! Great to meet you. How can I help?"
+	case strings.Contains(lower, "summarize"), strings.Contains(lower, "summary"):
+		return "Here is the summary: The content covers the main points effectively. The key takeaway is that all objectives have been met successfully."
+	case strings.Contains(lower, "explain"):
+		return "This works by processing the input, applying the necessary transformations, and producing the expected output. The design is straightforward and efficient."
+	case strings.Contains(lower, "write"), strings.Contains(lower, "generate"), strings.Contains(lower, "create"):
+		return "Here is what you requested:\n\nThe quick brown fox jumps over the lazy dog. This classic sentence demonstrates every letter of the alphabet and has been used for testing since the late 1800s."
+	case strings.Contains(lower, "fix"), strings.Contains(lower, "bug"), strings.Contains(lower, "error"):
+		return "The issue has been identified and resolved. The root cause was a missing validation step. No further action is needed."
+	case strings.Contains(lower, "test"):
+		return "All tests pass. The implementation is correct and meets the specified requirements."
+	default:
+		return fmt.Sprintf("Here is my response to your request: I've carefully considered \"%s\" and completed the task. No further action is needed.", truncate(lastUser, 100))
+	}
+}
+
+func truncate(s string, maxLen int) string {
+	if len(s) <= maxLen {
+		return s
+	}
+	return s[:maxLen] + "..."
 }
 
 // ============================================================================
@@ -377,37 +416,14 @@ func chatCompletionsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Handle tool calls if tools are provided
+	// Always return a text response (never randomly trigger tool calls)
 	var responseMessage ChatMessage
 	finishReason := "stop"
 
-	if len(req.Tools) > 0 && shouldUseTool(req) {
-		// Simulate a tool call response
-		tool := req.Tools[0]
-		responseMessage = ChatMessage{
-			Role: "assistant",
-			ToolCalls: []ToolCall{
-				{
-					ID:   "call_" + uuid.New().String()[:8],
-					Type: "function",
-					Function: struct {
-						Name      string `json:"name"`
-						Arguments string `json:"arguments"`
-					}{
-						Name:      tool.Function.Name,
-						Arguments: `{"mock": "arguments"}`,
-					},
-				},
-			},
-		}
-		finishReason = "tool_calls"
-	} else {
-		// Regular response
-		mockContent := mockResponses[rand.Intn(len(mockResponses))]
-		responseMessage = ChatMessage{
-			Role:    "assistant",
-			Content: MessageContent{Text: mockContent},
-		}
+	mockContent := echoResponse(req.Messages)
+	responseMessage = ChatMessage{
+		Role:    "assistant",
+		Content: MessageContent{Text: mockContent},
 	}
 
 	// Calculate tokens
@@ -450,19 +466,6 @@ func chatCompletionsHandler(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(response)
 }
 
-func shouldUseTool(req ChatCompletionRequest) bool {
-	// Check if tool_choice forces tool use
-	if req.ToolChoice != nil {
-		switch v := req.ToolChoice.(type) {
-		case string:
-			return v == "required" || v == "auto"
-		case map[string]interface{}:
-			return true
-		}
-	}
-	return rand.Float32() < 0.3 // 30% chance to use tool when available
-}
-
 func handleStreamingChat(w http.ResponseWriter, req ChatCompletionRequest) {
 	// Set SSE headers
 	w.Header().Set("Content-Type", "text/event-stream")
@@ -481,7 +484,7 @@ func handleStreamingChat(w http.ResponseWriter, req ChatCompletionRequest) {
 	fingerprint := generateFingerprint()
 
 	// Generate response content
-	mockContent := mockResponses[rand.Intn(len(mockResponses))]
+	mockContent := echoResponse(req.Messages)
 	words := strings.Fields(mockContent)
 
 	// Send initial chunk with role
