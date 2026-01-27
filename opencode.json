@@ -1,6 +1,31 @@
 {
   "$schema": "https://opencode.ai/config.json",
   "provider": {
+    "mock-openai-no-stream": {
+      "npm": "file://{env:PWD}/openai-mtls-no-stream-provider",
+      "name": "Mock OpenAI Server (No Stream)",
+      "options": {
+        "baseURL": "https://localhost:8000/v1",
+        "clientCert": "./certs/client.crt",
+        "clientKey": "./certs/client.key",
+        "proxy": "http://localhost:8080",
+        "headers": {
+          "X-Custom-Header": "test-value-123",
+          "X-Request-Source": "opencode-no-stream"
+        },
+        "removeKeys": ["frequency_penalty", "presence_penalty"]
+      },
+      "models": {
+        "gpt-4o": {
+          "name": "GPT-4o (Mock No Stream)",
+          "attachments": true,
+          "limit": {
+            "context": 128000,
+            "output": 16384
+          }
+        }
+      }
+    },
     "mock-openai-mtls": {
       "npm": "file://{env:PWD}/openai-mtls-provider",
       "name": "Mock OpenAI Server (mTLS)",
