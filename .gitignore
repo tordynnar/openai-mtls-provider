@@ -51,3 +51,11 @@ certs/*.ext
 openai-mtls-provider/dist/
 openai-mtls-provider/node_modules/
 openai-mtls-provider/*.tgz
+
+# No-Stream Provider build artifacts
+openai-mtls-no-stream-provider/dist/
+openai-mtls-no-stream-provider/node_modules/
+openai-mtls-no-stream-provider/*.tgz
+
+# Cloned repos
+/ai/
